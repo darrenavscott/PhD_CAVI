@@ -2,12 +2,13 @@
 """
 Created on Sat Jun 15 13:31:38 2019
 
-@author: darre
+@author: Darren
 """
 
 #######Create Dataset with correlated noise##################
 
 #Covariate values
+
 out = np.array([0,1,2])
 
 ##Intialise
