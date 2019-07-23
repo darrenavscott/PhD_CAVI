@@ -36,7 +36,7 @@ def usumhlk(Y, X, beta_1, rho_mu, inv_sigma2_1, T, t, s):
     """"
 	Purpose
 	-------
-	(Calculate the Atk**2 in the mu_beta calculation. Returns a column vector)  
+	(Calculate the Atk**2 in the mu_beta calculation. Returns a vector 1 x T)  
      
  	Parameters
 	----------
@@ -69,7 +69,7 @@ def usumhlk(Y, X, beta_1, rho_mu, inv_sigma2_1, T, t, s):
 def sigmab_beta_gamma_updateu(Y, X, mu_beta, beta_1, sigma2_beta, gamma_1,
                               inv_sigma2_1, log_inv_sigma2_1, rho_mu, 
                               rho_2, inv_w_1, log_inv_w_1, log_omega_1,
-                              log_minomega_1, T):
+                              log_minomega_1, T, p, beta_2):
     """"
 	Purpose
 	-------
@@ -92,7 +92,8 @@ def sigmab_beta_gamma_updateu(Y, X, mu_beta, beta_1, sigma2_beta, gamma_1,
      log_inv_w_1 = Scalar 1 / E_q[log w]),
      log_omega_1 = log Eq[omega],
      log_minomega_1 = log Eq[log(1 - omega)],
-     T = Total number of reponses. 
+     T = Total number of reponses
+     p = Number of parameters. 
      
 	Returns
 	-------
@@ -150,6 +151,7 @@ def sigmab_beta_gamma_updateu(Y, X, mu_beta, beta_1, sigma2_beta, gamma_1,
     return np.array([mu_beta, sigma2_beta, gamma_1, beta_1, beta_2])   
 
 
+
 def kprodaccu(Y, X, beta_1, rho_mu, T):
     """"
 	Purpose
@@ -182,7 +184,7 @@ def kprodaccu(Y, X, beta_1, rho_mu, T):
         p = p + 1
 
     tot = np.concatenate([np.zeros(T-len(total)),total])
-    return (np.array([tot]))
+    return np.array([tot])
                 
 
 
@@ -211,7 +213,8 @@ def sumexself(X, beta_1, p):
 
 
 
-def sigma2_updateu2(Y, X, nu, T, n, gamma_1, tau_1, rho_mu, rho_2, inv_w_1, beta_1, beta_2):
+def sigma2_updateu2(Y, X, nu, T, n, gamma_1, tau_1, rho_mu, rho_2, 
+                    inv_w_1, beta_1, beta_2, p):
     """"
 	Purpose
 	-------
@@ -225,6 +228,7 @@ def sigma2_updateu2(Y, X, nu, T, n, gamma_1, tau_1, rho_mu, rho_2, inv_w_1, beta
      nu = Scalar hyperparameter for sigma2,
      T = Total number of responses,
      n = Number of individuals,
+     p = Number of parameters,
      gamma_1 = Vector of updates for gamma E_q[gamma],
      tau_1 = Scalar update for tau E_q[tau],
      rho_mu = Vector of updates for rho E_q[rho],
@@ -254,7 +258,7 @@ def sigma2_updateu2(Y, X, nu, T, n, gamma_1, tau_1, rho_mu, rho_2, inv_w_1, beta
     
     U_2 = UA - UB + UC + UD 
     
-    A = tau_1 + tau_1 * np.sum(rho_mu, axis = 0)
+    A = tau_1 + tau_1 * np.sum(rho_2, axis = 0)
     B = U_2 
     C = np.concatenate([np.zeros(1), np.dot(U_2[:T-1], rho_2[:T-1,1:])]) 
     D = kprodaccu(Y = Y, X = X, beta_1 = beta_1, rho_mu = rho_mu, T = T)
@@ -270,7 +274,8 @@ def sigma2_updateu2(Y, X, nu, T, n, gamma_1, tau_1, rho_mu, rho_2, inv_w_1, beta
 
 
                                
-def sigma2_updateu1(Y, X, nu, T, n, gamma_1, tau_1, rho_mu, rho_2, inv_w_1, beta_1, beta_2):
+def sigma2_updateu1(Y, X, nu, T, n, gamma_1, tau_1, rho_mu, rho_2, 
+                    inv_w_1, beta_1, beta_2, p):
     """"
 	Purpose
 	-------
@@ -315,7 +320,7 @@ def sigma2_updateu1(Y, X, nu, T, n, gamma_1, tau_1, rho_mu, rho_2, inv_w_1, beta
     U_2 = UA - UB + UC + UD 
     
           
-    A = tau_1 + tau_1 * np.sum(rho_mu, axis= 0)
+    A = tau_1 + tau_1 * np.sum(rho_2, axis= 0)
     B = U_2 
     C = np.concatenate([np.zeros(1), np.dot(U_2[:T-1], rho_2[:T-1,1:])]) 
     D = kprodaccu(Y = Y, X = X, beta_1 = beta_1, rho_mu = rho_mu, T = T)
@@ -332,7 +337,7 @@ def sigma2_updateu1(Y, X, nu, T, n, gamma_1, tau_1, rho_mu, rho_2, inv_w_1, beta
 
 
 
-def rho_updateu(Y, X, beta_1, beta_2, inv_sigma2_1, tau_1, T, rho_mu):
+def rho_updateu(Y, X, beta_1, beta_2, inv_sigma2_1, tau_1, T, rho_mu, p):
     """"
 	Purpose
 	-------
@@ -515,10 +520,27 @@ def tau_update(a_tau, b_tau, T, nu, inv_sigma2_1, rho_2):
     return np.array([a_tau_star, b_tau_star, tau_1, log_tau_1])    
 
 ######
+def log_beta(a,b):
+    """"
+	Purpose
+	-------
+	(Calculate the beta function on the log scale.)  
+     
+	Parameters
+	----------
+	(a,b) 
+           
+	Returns
+	-------
+	(log Beta(a,b))
+	"""
+    log_beta = sy.special.loggamma(a) + sy.special.loggamma(b) - \
+               sy.special.loggamma(a + b)
+               
+    return np.array([log_beta])
 
 
-
-def ELBO_A_y_cq(n, X, b_star_sigma2, inv_sigma2_1, tau_1, rho_2):    
+def ELBO_A_y_cq(n, X, b_star_sigma2, log_inv_sigma2_1, inv_sigma2_1, tau_1, rho_2):    
     """"
 	Purpose
 	-------
@@ -538,7 +560,7 @@ def ELBO_A_y_cq(n, X, b_star_sigma2, inv_sigma2_1, tau_1, rho_2):
 	-------
 	(sum_t(A(y_t| beta_t, sigma^2_t, rho_t)).)
 	"""
-    ELBO_A_t = - (n / 2) * np.log(2 * math.pi) + (n / 2) * np.log(inv_sigma2_1) - (1 / 2) * inv_sigma2_1 * \
+    ELBO_A_t = - (n / 2) * np.log(2 * math.pi) + (n / 2) * log_inv_sigma2_1 - (1 / 2) * inv_sigma2_1 * \
                (b_star_sigma2 - (tau_1 * (1 / 2) + tau_1 * (1 / 2) * np.sum(rho_2, axis= 0)))             
         
     ELBO_A = np.sum(ELBO_A_t)
@@ -547,7 +569,8 @@ def ELBO_A_y_cq(n, X, b_star_sigma2, inv_sigma2_1, tau_1, rho_2):
 
 
 
-def ELBO_B_beta_gamma(gamma_1, log_inv_w_1, log_inv_sigma2_1, inv_sigma2_1, inv_w_1, beta_2, sigma2_beta, log_omega_1, log_minomega_1):
+def ELBO_B_beta_gamma(gamma_1, log_inv_w_1, log_inv_sigma2_1, inv_sigma2_1, inv_w_1, beta_2, 
+                      sigma2_beta, log_omega_1, log_minomega_1):
     """"
 	Purpose
 	-------
@@ -579,18 +602,18 @@ def ELBO_B_beta_gamma(gamma_1, log_inv_w_1, log_inv_sigma2_1, inv_sigma2_1, inv_
        
     ELBO_B_bg_ne01a = (gamma_1[indx[0],indx[1]] / 2) *  \
                           (log_inv_w_1[indx[0]] + 2 * log_omega_1[indx[1]] +  \
-                          np.log(sigma2_beta[indx[0],indx[1]]) + 1 -  \
+                          np.log(sigma2_beta[indx[0],indx[1]]) + 1 - 2 * \
                           np.log(gamma_1[indx[0],indx[1]])) - \
-                      beta_2[indx[0],indx[1]] * inv_w_1[indx[0]] 
+                      (1 / 2) * beta_2[indx[0],indx[1]] * inv_w_1[indx[0]] 
                                    
     ELBO_B_bg_ne01b =   (1 - gamma_1[indx[0],indx[1]]) * (log_minomega_1[indx[1]] *  \
                                 np.log(1 - gamma_1[indx[0],indx[1]]))
     
-    ELBO_B_bg_e1 = (gamma_1[indx1[0],indx1[1]] / 2) *  \
-                           (log_inv_w_1[indx1[0]] + 2 * log_omega_1[indx1[1]] +  \
-                           np.log(sigma2_beta[indx1[0],indx1[1]]) + 1 -  \
-                           np.log(gamma_1[indx1[0],indx1[1]])) - \
-                   beta_2[indx1[0],indx1[1]] * inv_w_1[indx1[0]]
+    ELBO_B_bg_e1 = (gamma_1[indx[0],indx[1]] / 2) *  \
+                          (log_inv_w_1[indx[0]] + 2 * log_omega_1[indx[1]] +  \
+                          np.log(sigma2_beta[indx[0],indx[1]]) + 1 - 2 * \
+                          np.log(gamma_1[indx[0],indx[1]])) - \
+                      (1 / 2) * beta_2[indx[0],indx[1]] * inv_w_1[indx[0]]
                                  
     ELBO_B_bg_e0 = (1 - gamma_1[indx0[0],indx0[1]]) * (log_minomega_1[indx0[1]] *  \
                                 np.log(1 - gamma_1[indx0[0],indx0[1]]))                      
@@ -619,7 +642,7 @@ def ELBO_C_omega(a_omega, b_omega, a_omega_star, b_omega_star, log_omega_1, log_
 	-------
 	(sum_s(C(omega_s)).)
 	"""
-    ELBO_C_omega_s = np.log(sy.special.beta(a_omega_star, b_omega_star)) - np.log(sy.special.beta(a_omega, b_omega)) \
+    ELBO_C_omega_s = log_beta(a_omega_star, b_omega_star) - log_beta(a_omega, b_omega) \
                      +  (a_omega_star - a_omega) * log_omega_1 + (b_omega_star - b_omega) * log_minomega_1      
 
     ELBO_C_omega = np.sum(ELBO_C_omega_s)
@@ -647,8 +670,8 @@ def ELBO_D_w(a_w, b_w_1, a_w_star, b_w_star, log_inv_w_1, inv_w_1, log_b_w_1):
 	-------
 	(D(w).)
 	"""
-    ELBO_D_w_t = a_w * log_b_w_1 - a_w_star * np.log(b_w_star) + np.log(sy.special.gamma(a_w_star)) \
-                 - np.log(sy.special.gamma(a_w)) + (a_w - a_w_star) * log_inv_w_1 + (b_w_star - b_w_1) * inv_w_1  
+    ELBO_D_w_t = a_w * log_b_w_1 - a_w_star * np.log(b_w_star) + sy.special.loggamma(a_w_star) \
+                 - sy.special.loggamma(a_w) + (a_w - a_w_star) * log_inv_w_1 + (b_w_star - b_w_1) * inv_w_1  
         
     ELBO_D_w = np.sum(ELBO_D_w_t)
         
@@ -677,20 +700,19 @@ def ELBO_F_sigma2(nu, T, tau_1, log_tau_1, a_star_sigma2, b_star_sigma2, inv_sig
 	-------
 	(F(sigma2).)
 	"""
-    ##issue come back t
+    ##issue come back to
+    ##log gamma function
     ELBO_F_sigma_t = ((nu - T + np.arange(1,T+1,1)) / 2) * (log_tau_1 - np.log(2)) - \
                      a_star_sigma2 * np.log(b_star_sigma2) - \
-                     np.log(sy.special.gamma((nu - T + np.arange(1,T+1,1)) / 2)) + \
-                     sy.special.gammaln(a_star_sigma2) + \
-                     log_inv_sigma2_1 * (((nu - T + np.arange(1,T+1,1)) / 2)- a_star_sigma2) \
+                     sy.special.loggamma((nu - T + np.arange(1,T+1,1)) / 2) + \
+                     sy.special.loggamma(a_star_sigma2) + \
+                     log_inv_sigma2_1 * (((nu - T + np.arange(1,T+1,1)) / 2) - a_star_sigma2) \
                      + inv_sigma2_1 * (b_star_sigma2 - tau_1 / 2) 
 
     ELBO_F_sigma = np.sum(ELBO_F_sigma_t)
 
     return np.array([ELBO_F_sigma])
 
-
-sy.special.gammaln
 
 
 def upper_tri(a, T):
@@ -736,7 +758,7 @@ def ELBO_G_rho(tau_1, log_tau_1, inv_sigma2_1, log_inv_sigma2_1, rho_2, rho_sigm
 	-------
 	(G(rho).)
 	"""
-    #Extract log of the upper triangle for function. Put in once working.
+
     a_log_rho_sigma2 = np.log(rho_sigma2[np.triu_indices(T, k = 1)])
     
     ELBO_G_rho_tk = (1 / 2) * (log_tau_1 + log_inv_sigma2_1[:,np.newaxis] \
@@ -770,7 +792,7 @@ def ELBO_H_tau(a_tau, b_tau, a_tau_star, b_tau_star, log_tau_1, tau_1):
 	(H(tau).)
 	"""
     ELBO_H_tau = a_tau * np.log(b_tau) - a_tau_star * np.log(b_tau_star) \
-                 + np.log(sy.special.gamma(a_tau_star)) - np.log(sy.special.gamma(a_tau)) \
+                 + sy.special.loggamma(a_tau_star) - sy.special.loggamma(a_tau) \
                  + (a_tau_star - a_tau) * log_tau_1 + (b_tau_star - b_tau) * tau_1
 
     return np.array([ELBO_H_tau])
@@ -797,15 +819,15 @@ def ELBO_I_b_w(a_b, b_b, a_b_star, b_b_star, log_b_w_1, b_w_1):
 	-------
 	(H(tau).)
 	"""
-    ELBO_H_tau = a_b * np.log(b_b) - a_b_star * np.log(b_b_star) - np.log(sy.special.gamma(a_b)) \
-                 + np.log(sy.special.gamma(a_b_star)) + log_b_w_1 * (a_b - a_b_star) \
+    ELBO_H_tau = a_b * np.log(b_b) - a_b_star * np.log(b_b_star) - sy.special.loggamma(a_b) \
+                 + sy.special.loggamma(a_b_star) + log_b_w_1 * (a_b - a_b_star) \
                  + b_w_1 * (b_b_star - b_b)
 
     return np.array([ELBO_H_tau])
 
+###############
 
-
-def cov2corr(A):
+def cov2corr(A):  
     """"
 	Purpose
 	-------
@@ -827,5 +849,91 @@ def cov2corr(A):
     return A
 
 
+def backtransform(VCV):
+    """"
+	Purpose
+	-------
+	(Transform true VCV to sigma2_t and rho_tk
+     parametrisation.)) 
+     	
+	Parameters
+	----------
+	(A = Covariance matrix.)
+	
+	Returns
+	-------
+	(rho and sigma2.)
+	"""
+    p = len(VCV[:,0])
+    sigma2 = np.zeros([p])
+    rho = np.zeros((p-1)*(p-1)).reshape(p-1,p-1)     
+    
+    sigma2[0] = VCV[0,0]
+    sigma2[1] = VCV[1,1] - VCV[0,1] *  np.reciprocal(VCV[0,0]) * VCV[0,1]
+    rho[0,0] = VCV[0,1] * np.reciprocal(VCV[0,0])
+    
+    for i in np.arange(2,p):
+        sigma2[i] = VCV[i,i] - np.dot(np.dot(VCV[i,0:i], np.linalg.inv(VCV[0:i,0:i])), VCV[i,0:i])      
+        rho[0:i,(i-1)] = np.dot(np.linalg.inv(VCV[0:i,0:i]), VCV[i,0:i])
+    
+    return [rho,sigma2]
+    
 
+def backsample(a_star_sigma2, b_star_sigma2, rho_mu, rho_sigma2, T, itera):
+    """"
+	Purpose
+	-------
+	(Estimate the estimated VCV from the q distribution of sigma2_t and rho.) 
+     	
+	Parameters
+	----------
+	(a_star_sigma2 = From CAVI
+     b_star_sigma2 = From CAVI
+     rho_mu = = From CAVI
+     rho_sigma2 = From CAVI
+     T = Number of responses
+     itera = Number of iterations.)
+	
+	Returns
+	-------
+	(outcv = 3d array itera x T X T
+     outcvmean = Estimated VCV (mean of outcv)
+     outcorrmean = Mean Correlation matrix)
+	"""
+    ##Number of samples 
+    sigma2 = np.zeros(T)
+    rho = np.zeros((p-1)*(p-1)).reshape(p-1,p-1)
+    C = np.zeros(T*T).reshape(T,T)
 
+    #3d array
+    outcv = np.zeros([itera,T,T])
+    outcorrmean = np.zeros([T,T]) 
+
+    for i in np.arange(itera):
+        for j in np.arange(1,T):    
+            #C1
+            C[0,0] = sy.stats.invgamma.rvs(a = a_star_sigma2[0], scale = b_star_sigma2[0])
+            sigma2[0] = C[0,0]
+            
+            #C2
+            sigma2[j] = sy.stats.invgamma.rvs(a = a_star_sigma2[j], scale = b_star_sigma2[j])
+            rho[0:j,j-1] = np.random.normal(rho_mu[0:j,j], np.sqrt(rho_sigma2[0:j,j]))
+               
+            C[0:j, j] = np.dot(C[j-1, j-1], rho[0:j, j-1]) 
+            C[j, 0:j] = np.dot(C[j-1, j-1], rho[0:j, j-1]) 
+            C[j, j] = sigma2[j] + np.dot(np.dot(C[0:j, j],np.linalg.inv(C[0:j, 0:j])), C[0:j, j])
+        
+        ##Each outcv is the variance covariance matrix
+        outcv[i,:,:] = C
+     
+    #Mean VCV
+    outcvmean = outcv.mean(axis=0)
+    
+    #Mean Correlation
+    Dt = np.sqrt(np.diag(outcvmean))
+    DInv = linalg.inv(np.diag(Dt))
+    R = np.dot(np.dot(DInv, outcvmean), DInv)
+    outcorrmean = R  
+
+    
+    return np.array([outcv,outcvmean, outcorrmean]) 
