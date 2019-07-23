@@ -27,16 +27,18 @@ from scipy.stats import invgamma
 from scipy.stats import beta
 from scipy.stats import gamma
 from pylab import *
-#from CAVIfun import *
+from numba import jit
+from sklearn.datasets import make_sparse_spd_matrix
 
 
-#######Create Dataset with correlated noise###############################################
+
+###Create Dataset with correlated noise###############################################
 
 #Covariate values
 out = np.array([0,1,2])
 
-n = 1000
-p = 250
+n = 300
+p = 500
 
 ##Design matrix
 np.random.seed(0)
@@ -55,8 +57,7 @@ R = np.array([1,   0.8,  0.2,  0.35,
               0.8,   1, 0.5,  0.75,
               0.2, 0.5,   1,  0.2,
               0.35, 0.75, 0.2,    1]).reshape(4,4)
-D = np.diag([1.3, 1, 1, 1])
-#########Sensitive to changes in D. 
+D = np.diag([2, 1, 1, 2])
 
 
 #Covariance
@@ -177,7 +178,7 @@ def CAVI(Y, X, mu_beta, sigma2_beta, gamma_1, beta_1, beta_2, a_omega, b_omega,
     e = 1
     ELBO = [-10000] #list 
     ELBO_diff = 100
-    max_diff = 0.1
+    max_diff = 1
     
     while(ELBO_diff > max_diff):
 
@@ -191,7 +192,7 @@ def CAVI(Y, X, mu_beta, sigma2_beta, gamma_1, beta_1, beta_2, a_omega, b_omega,
                                                    log_inv_w_1 = log_inv_w_1, 
                                                    log_omega_1 = log_omega_1,
                                                    log_minomega_1 = log_minomega_1,
-                                                   T = T)    
+                                                   T = T, p = p, beta_2 = beta_2)    
           
         mu_beta = out_beta_gamma[0] 
         sigma2_beta = out_beta_gamma[1]                 
@@ -231,12 +232,13 @@ def CAVI(Y, X, mu_beta, sigma2_beta, gamma_1, beta_1, beta_2, a_omega, b_omega,
         b_tau_star = out_tau[1]
         tau_1 = out_tau[2]
         log_tau_1 = out_tau[3]
+       
         
         #Sigma
         out_sigma2 = sigma2_updateu2(Y = Y, X = X, nu = nu, T =T, n = n, gamma_1 = gamma_1, 
                                       tau_1 = tau_1, rho_mu = rho_mu, rho_2 = rho_2, 
                                       inv_w_1 = inv_w_1, beta_1 = beta_1, 
-                                      beta_2 = beta_2)
+                                      beta_2 = beta_2, p = p)
         a_star_sigma2 = out_sigma2[0].flatten()
         b_star_sigma2 = out_sigma2[1].flatten()
         inv_sigma2_1 = out_sigma2[2].flatten()
@@ -245,7 +247,7 @@ def CAVI(Y, X, mu_beta, sigma2_beta, gamma_1, beta_1, beta_2, a_omega, b_omega,
         #Rho
         out_rho = rho_updateu(tau_1 = tau_1, Y = Y, X = X, beta_1 = beta_1, 
                               beta_2 = beta_2, inv_sigma2_1 = inv_sigma2_1, T = T,
-                              rho_mu = rho_mu)
+                              rho_mu = rho_mu, p = p)
         rho_mu = out_rho[0]
         rho_sigma2 = out_rho[1]
         rho_2 = out_rho[2]
@@ -255,7 +257,7 @@ def CAVI(Y, X, mu_beta, sigma2_beta, gamma_1, beta_1, beta_2, a_omega, b_omega,
         
         A = ELBO_A_y_cq(n = n, X = X, b_star_sigma2 = b_star_sigma2, 
                            inv_sigma2_1 = inv_sigma2_1, tau_1 = tau_1, 
-                           rho_2 = rho_2) 
+                           rho_2 = rho_2, log_inv_sigma2_1 = log_inv_sigma2_1) 
         B = ELBO_B_beta_gamma(gamma_1 = gamma_1, log_inv_w_1 = log_inv_w_1, 
                                  log_inv_sigma2_1 = log_inv_sigma2_1, 
                                  inv_sigma2_1 = inv_sigma2_1,  
@@ -286,35 +288,45 @@ def CAVI(Y, X, mu_beta, sigma2_beta, gamma_1, beta_1, beta_2, a_omega, b_omega,
    
         e = e + 1      
     
-    return np.array([mu_beta, sigma2_beta, gamma_1, beta_1, beta_2, 
-                     a_star_sigma2, b_star_sigma2, rho_mu, rho_sigma2, ELBO])
+    return [mu_beta, sigma2_beta, gamma_1, beta_1, beta_2, 
+                     a_star_sigma2, b_star_sigma2, rho_mu, rho_sigma2, 
+                     inv_sigma2_1, ELBO]
 
 
-CAVout = CAVI(Y = Y, X = X, mu_beta = mu_beta, sigma2_beta = sigma2_beta,
-              gamma_1 = gamma_1, beta_1 = beta_1, beta_2 = beta_2, a_omega = a_omega, 
-              b_omega = b_omega, omega_1 = omega_1, log_omega_1 = log_omega_1, 
-              log_minomega_1 = log_minomega_1, a_w = a_w, 
-              b_w_1 = b_w_1, inv_w_1 = inv_w_1, log_inv_w_1 = log_inv_w_1,
-              a_sigma2 = a_sigma2, b_sigma2 = b_sigma2, 
-              inv_sigma2_1 = inv_sigma2_1, log_inv_sigma2_1 = log_inv_sigma2_1, 
-              rho_mu = rho_mu, rho_sigma2 = rho_sigma2, 
-              rho_2 = rho_2, a_tau = a_tau, 
-              b_tau = b_tau, tau_1 = tau_1, log_tau_1 = log_tau_1, nu = nu)
+
+CAVout = CAVI(
+        Y = Y, X = X, mu_beta = mu_beta, sigma2_beta = sigma2_beta, 
+        gamma_1 = gamma_1, beta_1 = beta_1, beta_2 = beta_2, a_omega = a_omega, 
+        b_omega = b_omega, omega_1 = omega_1, log_omega_1 = log_omega_1, 
+        log_minomega_1 = log_minomega_1, a_w = a_w, 
+        b_w_1 = b_w_1, inv_w_1 = inv_w_1, log_inv_w_1 = log_inv_w_1,
+        a_sigma2 = a_sigma2, b_sigma2 = b_sigma2, 
+        inv_sigma2_1 = inv_sigma2_1, log_inv_sigma2_1 = log_inv_sigma2_1, 
+        rho_mu = rho_mu, rho_sigma2 = rho_sigma2, 
+        rho_2 = rho_2, a_tau = a_tau, 
+        b_tau = b_tau, tau_1 = tau_1, log_tau_1 = log_tau_1, nu = nu)
 
 
 
 
 ##Plot of the ELBO
-ELBO = CAVout[9]
+ELBO = CAVout[10]
 np.array([ELBO])
-ELBOplot = ELBO[1:len(ELBO)]
-itera = np.arange(1, len(ELBO), 1)
+ELBOplot = ELBO[0:len(ELBO)]
+itera = np.arange(0, len(ELBO), 1)
 plot(itera, ELBOplot)
 xlabel('Iteration (i)')
 ylabel('ELBO')
 title('ELBO')
 grid(True)
 show()
+
+
+#Estimated mean sigma2_t values
+1 / (CAVout[9])
+##True rho and sigma2_t
+backtransform(VCV = VCV)  
+
 
 
 #Paramter - point estimates 
@@ -411,26 +423,4 @@ for i in np.arange(itera):
 outcorr.mean(axis=0)
 outcv.mean(axis=0)
 VCV
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
